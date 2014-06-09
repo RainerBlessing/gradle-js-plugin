@@ -17,7 +17,7 @@ import org.gradle.api.GradleException
  */
 class JsMinifier {
 
-    void minifyJsFile(final Set<File> inputFiles, final Set<File> externsFiles, final File outputFile, final File sourceMap, CompilerOptions options,
+    static void minifyJsFile(final Set<File> inputFiles, final Set<File> externsFiles, final File outputFile, final File sourceMap, final String outputWrapper, CompilerOptions options,
             final String warningLevel, final String compilationLevel) {
         options = options ?: new CompilerOptions()
         options.setSourceMapOutputPath(sourceMap?.path)
@@ -30,16 +30,20 @@ class JsMinifier {
             externs.addAll(externsFiles.collect() { SourceFile.fromFile(it) })
         }
         List<SourceFile> inputs = new ArrayList<SourceFile>()
-        inputFiles.each { inputFile -> 
+        inputFiles.each { inputFile ->
           inputs.add(SourceFile.fromFile(inputFile))
         }
         Result result = compiler.compile(externs, inputs, options)
         if (result.success) {
-            outputFile.write(compiler.toSource())
+            def wrappedOutput = OutputWrapper.wrapOutput(compiler.toSource(), outputWrapper)
+            outputFile.write(wrappedOutput[1])
+            def wrapperPrefix = wrappedOutput[0]
+
             if(sourceMap) {
-              def sourceMapContent = new StringBuffer()
-              result.sourceMap.appendTo(sourceMapContent, outputFile.name)
-              sourceMap.write(sourceMapContent.toString())
+                def sourceMapContent = new StringBuffer()
+                compiler.getSourceMap().setWrapperPrefix(wrapperPrefix)
+                result.sourceMap.appendTo(sourceMapContent, outputFile.name)
+                sourceMap.write(sourceMapContent.toString())
             }
         } else {
         	String error = ""
